@@ -1,0 +1,4 @@
+flask
+azure-ai-formrecognizer==3.3.0
+python-dotenv
+Werkzeug

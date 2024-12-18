@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Receipt Scanner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .loading {
+            display: none;
+        }
+        .loading.active {
+            display: block;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold text-center mb-8">Smart Receipt Scanner</h1>
+        
+        <div class="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
+            <div class="mb-6">
+                <div class="flex items-center justify-center w-full">
+                    <label class="flex flex-col w-full h-32 border-4 border-dashed cursor-pointer hover:bg-gray-100 hover:border-gray-300 transition-all duration-300">
+                        <div class="flex flex-col items-center justify-center pt-7">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 text-gray-400 group-hover:text-gray-600" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" />
+                            </svg>
+                            <p class="pt-1 text-sm tracking-wider text-gray-400 group-hover:text-gray-600">
+                                Select a receipt image
+                            </p>
+                        </div>
+                        <input type="file" class="opacity-0" id="fileInput" accept="image/*"/>
+                    </label>
+                </div>
+            </div>
+
+            <div class="loading text-center mb-4">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                <p class="mt-2 text-gray-600">Analyzing receipt...</p>
+            </div>
+
+            <div id="error" class="hidden mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+                <p id="errorMessage" class="font-medium"></p>
+            </div>
+
+            <div id="result" class="hidden">
+                <h2 class="text-xl font-semibold mb-4">Receipt Details</h2>
+                <div class="space-y-4">
+                    <div class="border-b pb-4" id="merchantInfoContainer">
+                        <h3 class="font-medium text-lg mb-2">Merchant Information</h3>
+                        <div class="space-y-2" id="merchantInfo">
+                        </div>
+                    </div>
+                    
+                    <div class="border-b pb-4" id="transactionDetailsContainer">
+                        <h3 class="font-medium text-lg mb-2">Transaction Details</h3>
+                        <div class="space-y-2" id="transactionDetails">
+                        </div>
+                    </div>
+
+                    <div class="border-b pb-4">
+                        <h3 class="font-medium text-lg mb-2">Items</h3>
+                        <div id="items" class="mt-2 space-y-2"></div>
+                    </div>
+
+                    <div>
+                        <h3 class="font-medium text-lg mb-2">Summary</h3>
+                        <div class="space-y-2">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Subtotal:</span>
+                                <span id="subtotal" class="font-medium"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Tax:</span>
+                                <span id="tax" class="font-medium"></span>
+                            </div>
+                            <div class="flex justify-between text-lg font-bold">
+                                <span>Total:</span>
+                                <span id="total"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const loading = document.querySelector('.loading');
+            const result = document.getElementById('result');
+            
+            // Show loading, hide results
+            loading.classList.add('active');
+            result.classList.add('hidden');
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Hide error if it was shown
+                    document.getElementById('error').classList.add('hidden');
+                    
+                    // Update UI with results
+                    const merchantInfo = document.getElementById('merchantInfo');
+                    const transactionDetails = document.getElementById('transactionDetails');
+                    
+                    // Clear previous content
+                    merchantInfo.innerHTML = '';
+                    transactionDetails.innerHTML = '';
+                    
+                    // Merchant Information
+                    const merchantFields = {
+                        'merchant_name': 'Name',
+                        'merchant_address': 'Address',
+                        'merchant_phone': 'Phone'
+                    };
+                    
+                    for (const [key, label] of Object.entries(merchantFields)) {
+                        if (data[key] && data[key] !== 'Not found') {
+                            merchantInfo.innerHTML += `
+                                <div>
+                                    <p class="text-gray-600">${label}:</p>
+                                    <p class="font-medium">${data[key]}</p>
+                                </div>
+                            `;
+                        }
+                    }
+                    
+                    // Transaction Details
+                    const transactionFields = {
+                        'receipt_number': 'Receipt Number',
+                        'transaction_date': 'Date',
+                        'transaction_time': 'Time',
+                        'payment_method': 'Payment Method'
+                    };
+                    
+                    for (const [key, label] of Object.entries(transactionFields)) {
+                        if (data[key] && data[key] !== 'Not found') {
+                            transactionDetails.innerHTML += `
+                                <div>
+                                    <p class="text-gray-600">${label}:</p>
+                                    <p class="font-medium">${data[key]}</p>
+                                </div>
+                            `;
+                        }
+                    }
+
+                    // Hide sections if they're empty
+                    if (!merchantInfo.innerHTML.trim()) {
+                        document.getElementById('merchantInfoContainer').classList.add('hidden');
+                    } else {
+                        document.getElementById('merchantInfoContainer').classList.remove('hidden');
+                    }
+                    
+                    if (!transactionDetails.innerHTML.trim()) {
+                        document.getElementById('transactionDetailsContainer').classList.add('hidden');
+                    } else {
+                        document.getElementById('transactionDetailsContainer').classList.remove('hidden');
+                    }
+
+                    // Update items and summary
+                    const itemsContainer = document.getElementById('items');
+                    itemsContainer.innerHTML = '';
+                    
+                    if (data.items && data.items.length > 0) {
+                        data.items.forEach(item => {
+                            const itemElement = document.createElement('div');
+                            itemElement.className = 'flex justify-between border-b pb-2';
+                            itemElement.innerHTML = `
+                                <span class="text-gray-800">${item.description || 'Unknown item'}</span>
+                                <span class="text-gray-600">$${item.amount ? item.amount.toFixed(2) : '0.00'}</span>
+                            `;
+                            itemsContainer.appendChild(itemElement);
+                        });
+                    } else {
+                        itemsContainer.innerHTML = '<p class="text-gray-500">No items found</p>';
+                    }
+
+                    document.getElementById('subtotal').textContent = data.subtotal ? `$${data.subtotal.toFixed(2)}` : 'Not found';
+                    document.getElementById('tax').textContent = data.tax ? `$${data.tax.toFixed(2)}` : 'Not found';
+                    document.getElementById('total').textContent = data.total ? `$${data.total.toFixed(2)}` : 'Not found';
+
+                    result.classList.remove('hidden');
+                } else {
+                    const errorDiv = document.getElementById('error');
+                    const errorMessage = document.getElementById('errorMessage');
+                    
+                    errorMessage.textContent = data.error || 'An unknown error occurred';
+                    errorDiv.classList.remove('hidden');
+                    result.classList.add('hidden');
+                }
+            } catch (error) {
+                alert('Error uploading file');
+                console.error(error);
+            } finally {
+                loading.classList.remove('active');
+            }
+        });
+    </script>
+</body>
+</html>
